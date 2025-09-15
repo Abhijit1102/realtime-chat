@@ -1,0 +1,106 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String // hashed password for auth
+  name      String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+
+  // Relations
+  rooms            RoomMember[]
+  invites          Invite[]              @relation("UserInvites")
+  messages         Message[]             @relation("UserMessages")
+  botMessages      ChatBotMessage[]      @relation("BotUserMessages")
+  botConversations ChatBotConversation[]
+}
+
+model Room {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  title     String
+  createdBy String // userId of creator
+  createdAt DateTime @default(now())
+
+  // Relations
+  members  RoomMember[]
+  messages Message[]
+  invites  Invite[]
+}
+
+model RoomMember {
+  id       String   @id @default(uuid())
+  room     Room     @relation(fields: [roomId], references: [id])
+  roomId   String
+  user     User     @relation(fields: [userId], references: [id])
+  userId   String
+  isAdmin  Boolean  @default(false)
+  joinedAt DateTime @default(now())
+
+  @@unique([roomId, userId]) // no duplicate members
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  room      Room     @relation(fields: [roomId], references: [id])
+  roomId    String
+  sender    User     @relation("UserMessages", fields: [senderId], references: [id])
+  senderId  String
+  content   String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+model Invite {
+  id         String    @id @default(uuid())
+  email      String
+  room       Room      @relation(fields: [roomId], references: [id])
+  roomId     String
+  token      String    @unique
+  createdBy  String // userId of inviter
+  accepted   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  acceptedAt DateTime?
+
+  // Relation back to User
+  user User? @relation("UserInvites", fields: [createdBy], references: [id])
+}
+
+model ChatBotConversation {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+
+  messages ChatBotMessage[]
+}
+
+model ChatBotMessage {
+  id             String              @id @default(uuid())
+  conversation   ChatBotConversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  senderType     ChatBotSender // USER | BOT
+  user           User?               @relation("BotUserMessages", fields: [userId], references: [id])
+  userId         String?
+  content        String
+  createdAt      DateTime            @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ChatBotSender {
+  USER
+  BOT
+}
